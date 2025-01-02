@@ -1,7 +1,7 @@
 [project]
 name = "promptprism"
 description = ""
-version = "1.0.0"
+version = "1.0.1"
 license = {file = "LICENSE"}
 dependencies = [
     "anthropic>=0.42.0",
