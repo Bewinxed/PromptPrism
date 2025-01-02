@@ -18,4 +18,4 @@ Repository = "https://github.com/Bewinxed/PromptPrism"
 [tool.comfy]
 PublisherId = "bewinxed"
 DisplayName = "PromptPrism 🌈⃤"
-Icon = "prism.png"
+Icon = "https://raw.githubusercontent.com/Bewinxed/PromptPrism/refs/heads/master/prism.png"
