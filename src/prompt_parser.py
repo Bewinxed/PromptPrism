@@ -1,10 +1,11 @@
-from typing import Dict, List, Optional, Literal
-from instructor import OpenAISchema, from_litellm
-from pydantic import Field
 import json
-from openai import OpenAI
-from litellm import acompletion
-from pydantic import BaseModel
+from typing import Dict, List, Literal
+
+from instructor import from_litellm
+from litellm import completion
+from pydantic import BaseModel, Field
+
+from .model_config import PROVIDER_MODELS
 
 Providers = Literal["openai", "anthropic", "deepseek", "ollama"]
 ProviderToModels: Dict[str, List[str]] = {
@@ -65,6 +66,22 @@ ProviderToModels: Dict[str, List[str]] = {
     ],
 }
 
+field_emojis = {
+    "eyes": "👀",
+    "quality": "🌟",
+    "clothes": "👗",
+    "hair": "💇",
+    "expression": "😊",
+    "body": "👤",
+    "pose": "🕺",
+    "accessories": "🕶️",
+    "background": "🏞️",
+    "composition": "🖼️",
+    "character": "👤",
+    "gender": "🚻",
+    "species": "🐾",
+}
+
 
 class Character(BaseModel):
     quality: List[str] = Field(
@@ -76,6 +93,7 @@ class Character(BaseModel):
     hair: List[str] = Field(
         description="Hair characteristics including color, length, style"
     )
+    eyes: List[str] = Field(description="Eye characteristics including color, shape")
     expression: List[str] = Field(
         default_factory=list, description="Facial expressions and emotions"
     )
@@ -90,28 +108,52 @@ class Character(BaseModel):
     composition: List[str] = Field(
         default_factory=list, description="Composition of the scene"
     )
+    gender: List[str] = Field(
+        default_factory=list, description="Gender of the character, if specified"
+    )
+    species: List[str] = Field(
+        default_factory=list, description="Species of the character, if specified"
+    )
+    age: List[str] = Field(
+        default_factory=list, description="Age of the character, if specified"
+    )
+    name: List[str] = Field(
+        default_factory=list, description="Name of the character, if specified"
+    )
 
 
 class CharacterPromptParser:
-    CATEGORY: str
-    FUNCTION: str
-    RETURN_TYPES: tuple
-    RETURN_NAMES: tuple
-
-    def __init__(self):
-        self.CATEGORY = "parsing"
-        self.FUNCTION = "parse_prompt"
-        # Dynamically get field names from Character class
-        self.RETURN_TYPES = tuple("STRING" for _ in Character.model_fields)
-        self.RETURN_NAMES = tuple(Character.model_fields.keys())
+    CATEGORY = "splitters"
+    FUNCTION = "parse_prompt"
+    RETURN_TYPES: tuple[Literal["STRING"], ...] = tuple(
+        ["STRING" for _ in Character.model_fields] + ["CHARACTER"]
+    )
+    RETURN_NAMES: tuple[str, ...] = tuple(
+        list(
+            [
+                f"{field} {field_emojis.get(field, '')}"
+                for field in Character.model_fields.keys()
+            ]
+        )
+        + ["character"]
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "provider": (list(ProviderToModels.keys()), {"default": "openai"}),
-                "model": ("STRING", {"default": "gpt-3.5-turbo"}),
+                # "provider": (list(PROVIDER_MODELS.keys()), {"default": "openai"}),
+                "model": (
+                    (
+                        [
+                            f"{provider}/{model}"
+                            for provider, models in PROVIDER_MODELS.items()
+                            for model in models
+                        ]
+                    ),
+                    {"default": "gpt-4-turbo"},
+                ),
                 "api_key": ("STRING", {"default": ""}),
                 "temperature": (
                     "FLOAT",
@@ -120,25 +162,31 @@ class CharacterPromptParser:
             }
         }
 
-    async def parse_prompt(
+    @classmethod
+    def VALIDATE_INPUTS(cls, provider=None, model=None):
+        # if model not in ProviderToModels[provider]:
+        #     return f"Model {model} is not valid for provider {provider}"
+        return True
+
+    def parse_prompt(
         self,
         prompt: str,
-        provider: str,
+        # provider: str,
         model: str,
         api_key: str,
         temperature: float = 1,
     ) -> tuple:
-        model_str = (
-            f"{provider}/{model}" if provider in ["deepseek", "ollama"] else model
-        )
-        client = from_litellm(acompletion)
+        # model_str = (
+        #     f"{provider}/{model}" if provider in ["deepseek", "ollama"] else model
+        # )
+        client = from_litellm(completion)
 
-        character: Character = await client.chat.completions.create(
-            model=model_str,
+        character = client.chat.completions.create(
+            model=model,
             messages=[
                 {
                     "role": "system",
-                    "content": "Parse the character description into structured data.",
+                    "content": "Input is a image genai prompt, parse the character description into structured data, don't change the format of the tags or the associated weights if they are specified",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -147,15 +195,98 @@ class CharacterPromptParser:
             api_key=api_key,
         )
 
+        fields: List[str, List[str]] = [
+            getattr(character, field) for field in Character.model_fields
+        ]
+        return tuple(fields + [character])
+
         return tuple(
             json.dumps(getattr(character, field)) for field in self.RETURN_NAMES
         )
 
     # Add custom update method to handle dynamic model dropdown
-    FUNCTION = "update"
+    # FUNCTION = "update"
 
-    def update(self):
-        return ProviderToModels[self.provider]
+    def update(self, **kwargs):
+        """
+        Update method for handling UI updates.
+        This method should only be called without arguments.
+        """
+        if not hasattr(self, "provider"):
+            return []
+        return ProviderToModels.get(self.provider, [])
+
+
+class CharacterPromptMerger:
+    """
+    ComfyUI node for merging character tags with weights and field toggles.
+    Allows selective field inclusion and custom weights per field.
+    """
+
+    CATEGORY = "mergers"
+    FUNCTION = "merge_character"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("tags",)
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        # Get all fields from Character model
+        fields = list(Character.model_fields.keys())
+
+        required_inputs = {
+            "character": ("CHARACTER", {"forceInput": True}),  # Input character object
+            "delimiter": ("STRING", {"default": ","}),  # Delimiter for joining tags
+        }
+
+        # Add toggle and weight inputs for each field
+        for field in fields:
+            # Boolean toggle for the field
+            required_inputs[f"enable_{field}"] = ("BOOLEAN", {"default": True})
+            # Weight input (only visible when toggle is True)
+            required_inputs[f"weight_{field}"] = (
+                "FLOAT",
+                {
+                    "default": 1.0,
+                    "min": 0.0,
+                    "max": 10.0,
+                    "step": 0.1,
+                    "visible": False,  # Initially hidden
+                },
+            )
+
+        return {"required": required_inputs}
+
+    def merge_character(
+        self, character: Character, delimiter: str = ",", **kwargs
+    ) -> tuple:
+        """
+        Merge character fields based on toggles and weights.
+
+        Args:
+            character: Character object containing field data
+            delimiter: String delimiter for joining tags
+            **kwargs: Dynamic inputs for field toggles and weights
+
+        Returns:
+            Tuple containing the merged tags string
+        """
+        result = []
+        fields = Character.model_fields.keys()
+
+        for field in fields:
+            # Check if field is enabled
+            if kwargs.get(f"enable_{field}", True):
+                weight = kwargs.get(f"weight_{field}", 1.0)
+                field_tags = getattr(character, field, [])
+
+                # Apply weights if not 1.0
+                if weight != 1.0:
+                    field_tags = [f"{tag}:{weight:.1f}" for tag in field_tags]
+
+                result.extend(field_tags)
+
+        # Join all tags with the specified delimiter and return as a single-element tuple
+        return (delimiter.join(result),)
 
 
 # Run async function
@@ -163,13 +294,13 @@ character = CharacterPromptParser()
 if __name__ == "__main__":
     import asyncio
 
-    character = asyncio.run(
-        CharacterPromptParser().parse_prompt(
-            """score_9, score_8_up, score_7_up, source_anime,
-        1girl, breast_curtains, very_long_hair, (blue_hair:1.2), long_hair, red_eyes, looking_at_viewer, smile, simple_background, white_background, solo, upper_body, fur-trimmed_capelet, fur_trim, white_capelet, capelet, white_dress, bowtie, cute_face, eyeliner, curly_hair, light_blue_hair, mini_witch_hat, neutral""",
-            provider="deepseek",
-            model="deepseek-chat",
-            api_key="sk-fc122a11b4fc46778021c08c50727f1d",
-        )
-    )
-    print(character)
+    # character = asyncio.run(
+    #     CharacterPromptParser().parse_prompt(
+    #         """score_9, score_8_up, score_7_up, source_anime,
+    #     1girl, breast_curtains, very_long_hair, (blue_hair:1.2), long_hair, red_eyes, looking_at_viewer, smile, simple_background, white_background, solo, upper_body, fur-trimmed_capelet, fur_trim, white_capelet, capelet, white_dress, bowtie, cute_face, eyeliner, curly_hair, light_blue_hair, mini_witch_hat, neutral""",
+    #         provider="deepseek",
+    #         model="deepseek-chat",
+    #         api_key="sk-fc122a11b4fc46778021c08c50727f1d",
+    #     )
+    # )
+    # print(character)

@@ -19,3 +19,73 @@ Repository = "https://github.com/Bewinxed/PromptPrism"
 PublisherId = "bewinxed"
 DisplayName = "PromptPrism 🌈⃤"
 Icon = "https://raw.githubusercontent.com/Bewinxed/PromptPrism/refs/heads/master/prism.png"
+
+
+[tool.comfy]
+PublisherId = "bewinxed"
+DisplayName = "PromptPrism 🌈⃤"
+Icon = "https://raw.githubusercontent.com/Bewinxed/PromptPrism/refs/heads/master/prism.png"
+
+[tool.ruff]
+# Exclude files and directories from being linted
+exclude = [
+    ".git",
+    ".ruff_cache",
+    "__pycache__",
+    "build",
+    "dist"
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.8
+target-version = "py38"
+
+[tool.ruff.lint]
+# Enable specific rules or rule sets
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "RUF", # Ruff-specific rules
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+]
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[
+tool.ruff.format
+]
+# Use double quotes for strings.
+quote-style = "double"
+
+# Indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Format docstrings.
+docstring-code-format = true
+
+[
+tool.ruff.isort
+]
+# Group imports into three categories: standard library, third-party, first-party.
+split-on-trailing-comma = true
+combine-as-imports = true
+force-single-line = false
+force-sort-within-sections = true
+
+# Add any known first-party imports here
+known-first-party = ["promptprism"]
