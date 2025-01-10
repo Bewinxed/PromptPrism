@@ -84,20 +84,30 @@ field_emojis = {
 
 
 class Character(BaseModel):
-    quality: List[str] = Field(
-        description="List of quality tags for the character description"
+    quality: str = Field(
+        description="""
+                A model interpretation field for categorizing image quality-related tags.
+                Handles both positive tags (e.g. 'score_x_up', 'amazing quality', 'absurdres', 'masterpiece')
+                that affect generation quality.
+                """.strip()
     )
     clothes: List[str] = Field(
-        description="List of clothing items worn by the character"
+        description="List of clothing items worn by the character, or lack thereof"
     )
     hair: List[str] = Field(
         description="Hair characteristics including color, length, style"
     )
     eyes: List[str] = Field(description="Eye characteristics including color, shape")
+    face: List[str] = Field(
+        default_factory=list, description="Facial features and attributes"
+    )
     expression: List[str] = Field(
         default_factory=list, description="Facial expressions and emotions"
     )
-    body: List[str] = Field(default_factory=list, description="Body characteristics")
+    body: List[str] = Field(
+        default_factory=list,
+        description="tags describing body features/attributes/proportions, this does not include pose data",
+    )
     pose: List[str] = Field(default_factory=list, description="Body pose and position")
     accessories: List[str] = Field(
         default_factory=list, description="Accessories worn by the character"
@@ -186,7 +196,11 @@ class CharacterPromptParser:
             messages=[
                 {
                     "role": "system",
-                    "content": "Input is a image genai prompt, parse the character description into structured data, don't change the format of the tags or the associated weights if they are specified",
+                    "content": """Input is a image genai prompt,
+                    parse the character description into structured data,
+                    don't change the format of the tags or the associated weights if they are specified
+                    don't change the order of the tags
+                    don't add or remove any tags not specified""".strip(),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -237,6 +251,14 @@ class CharacterPromptMerger:
             "character": ("CHARACTER", {"forceInput": True}),  # Input character object
             "delimiter": ("STRING", {"default": ","}),  # Delimiter for joining tags
         }
+        optional_inputs = {
+            (f"override_{field} {field_emojis.get(field, '')}"): (
+                "STRING",
+                {"forceInput": True},
+            )
+            for field in fields
+        }
+        optional_inputs["prefix"] = ("STRING", {"forceInput": True})
 
         # Add toggle and weight inputs for each field
         for field in fields:
@@ -254,10 +276,10 @@ class CharacterPromptMerger:
                 },
             )
 
-        return {"required": required_inputs}
+        return {"required": required_inputs, "optional": optional_inputs}
 
     def merge_character(
-        self, character: Character, delimiter: str = ",", **kwargs
+        self, character: Character, delimiter: str = ",", prefix: str = "", **kwargs
     ) -> tuple:
         """
         Merge character fields based on toggles and weights.
@@ -265,6 +287,7 @@ class CharacterPromptMerger:
         Args:
             character: Character object containing field data
             delimiter: String delimiter for joining tags
+            prefix: String to prepend to the final result
             **kwargs: Dynamic inputs for field toggles and weights
 
         Returns:
@@ -276,8 +299,21 @@ class CharacterPromptMerger:
         for field in fields:
             # Check if field is enabled
             if kwargs.get(f"enable_{field}", True):
+                override_key = f"override_{field} {field_emojis.get(field, '')}"
+                overrides = kwargs.get(override_key)
                 weight = kwargs.get(f"weight_{field}", 1.0)
-                field_tags = getattr(character, field, [])
+
+                # Handle override values
+                if overrides:
+                    # Convert string to list if it's a string
+                    field_tags = (
+                        [overrides] if isinstance(overrides, str) else overrides
+                    )
+                else:
+                    field_tags = getattr(character, field, [])
+
+                # Filter out empty or None values
+                field_tags = [tag for tag in field_tags if tag]
 
                 # Apply weights if not 1.0
                 if weight != 1.0:
@@ -285,8 +321,11 @@ class CharacterPromptMerger:
 
                 result.extend(field_tags)
 
-        # Join all tags with the specified delimiter and return as a single-element tuple
-        return (delimiter.join(result),)
+        # Join all tags with the specified delimiter and proper spacing
+        joined_tags = f"{delimiter} ".join(tag.strip() for tag in result if tag.strip())
+
+        # Return as a single-element tuple with prefix
+        return (f"{prefix}{delimiter}{joined_tags}",)
 
 
 # Run async function
