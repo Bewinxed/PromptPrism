@@ -1,6 +1,6 @@
 # 🌈⃤ PromptPrism
 
-![banner waifu](../banner.png)
+![banner waifu](banner.png)
 PromptPrism is a ComfyUI custom node that helps you parse character descriptions for image generation and organize them into structured categories.
 
 This is helpful to fine-tune character-focused image generations, for Visual Novels, Character sprites, etc...
@@ -13,7 +13,7 @@ This is helpful to fine-tune character-focused image generations, for Visual Nov
 
 Connect your prompt to the parser node, it will split it into categories, then you can use the merger node to select which categories you want to include in your final prompt.
 You can use the parser on another prompt, and take only some elements from it, and merge them with the first one.
-![Demonstration](../screenshot.png)
+![Demonstration](screenshot.png)
 
 ## 🔧 Installation
 
