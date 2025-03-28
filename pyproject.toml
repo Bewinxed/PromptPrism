@@ -2,7 +2,7 @@
 name = "promptprism"
 description = ""
 version = "1.0.1"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 dependencies = [
     "anthropic>=0.42.0",
     "deepseek>=0.0.1.dev0",
@@ -20,21 +20,9 @@ PublisherId = "bewinxed"
 DisplayName = "PromptPrism 🌈⃤"
 Icon = "https://raw.githubusercontent.com/Bewinxed/PromptPrism/refs/heads/master/prism.png"
 
-
-[tool.comfy]
-PublisherId = "bewinxed"
-DisplayName = "PromptPrism 🌈⃤"
-Icon = "https://raw.githubusercontent.com/Bewinxed/PromptPrism/refs/heads/master/prism.png"
-
 [tool.ruff]
 # Exclude files and directories from being linted
-exclude = [
-    ".git",
-    ".ruff_cache",
-    "__pycache__",
-    "build",
-    "dist"
-]
+exclude = [".git", ".ruff_cache", "__pycache__", "build", "dist"]
 
 # Same as Black.
 line-length = 88
@@ -57,15 +45,13 @@ select = [
 
 # Ignore specific rules
 ignore = [
-    "E501",  # Line too long (handled by formatter)
+    "E501", # Line too long (handled by formatter)
 ]
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-[
-tool.ruff.format
-]
+[tool.ruff.format]
 # Use double quotes for strings.
 quote-style = "double"
 
@@ -78,9 +64,7 @@ skip-magic-trailing-comma = false
 # Format docstrings.
 docstring-code-format = true
 
-[
-tool.ruff.isort
-]
+[tool.ruff.isort]
 # Group imports into three categories: standard library, third-party, first-party.
 split-on-trailing-comma = true
 combine-as-imports = true
